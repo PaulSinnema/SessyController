@@ -1,4 +1,5 @@
-﻿using System.Xml;
+﻿using System.Drawing;
+using System.Xml;
 
 namespace Services
 {
@@ -21,7 +22,7 @@ namespace Services
         private const string Time = "0000";
         private Timer? _timer;
         private static string? _securityToken;
-        private volatile Dictionary<DateTime, double> _prices;
+        private volatile Dictionary<DateTime, double>? _prices;
 
 
         public EPEXHourlyPricesService(IConfiguration configuration)
@@ -62,15 +63,17 @@ namespace Services
         /// <summary>
         /// Get the fetched prices for today and tomorrow (if present).
         /// </summary>
-        public Dictionary<DateTime, double> GetPrices() 
+        public Dictionary<DateTime, double>? GetPrices() 
         {
             return _prices;
         }
 
+        /// <summary>
+        /// Get the day-ahead-prices from ENTSO-E Api.
+        /// </summary>
         private static async Task<Dictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date)
         {
             date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
-            var prices = new Dictionary<DateTime, double>();
             string periodStart = date.ToString(DateFormat) + Time;
             string periodEnd = date.AddDays(2).ToString(DateFormat) + Time;
             string url = $"{ApiUrl}?documentType=A44&in_Domain={InDomain}&out_Domain={InDomain}&periodStart={periodStart}&periodEnd={periodEnd}&securityToken={_securityToken}";
@@ -79,40 +82,84 @@ namespace Services
             response.EnsureSuccessStatusCode();
             string responseBody = await response.Content.ReadAsStringAsync();
 
-            XmlDocument xmlDoc = new XmlDocument();
-            xmlDoc.LoadXml(responseBody);
+            var prices = GetPrizes(responseBody);
 
-            XmlNamespaceManager nsmgr = new XmlNamespaceManager(xmlDoc.NameTable);
-            nsmgr.AddNamespace("ns", Ns);
-            GetPrizes(prices, xmlDoc, nsmgr);
-
-            // Detecteer en vul ontbrekende punten in
+            // Detect and fill gaps in the prices with average prices.
             FillMissingPoints(prices, date, date.AddDays(1), TimeSpan.FromHours(1));
 
             return prices.OrderBy(point => point.Key).ToDictionary();
         }
 
-        private static void GetPrizes(Dictionary<DateTime, double> prices, XmlDocument xmlDoc, XmlNamespaceManager nsmgr)
+        /// <summary>
+        /// Get the prices and timestamps from the XML response.
+        /// </summary>
+        private static Dictionary<DateTime, double> GetPrizes(string responseBody)
         {
-            foreach (XmlNode timeSeries in xmlDoc.SelectNodes(TimeSeries, nsmgr))
+            var prices = new Dictionary<DateTime, double>();
+
+            XmlDocument xmlDoc = new XmlDocument();
+            xmlDoc.LoadXml(responseBody);
+
+            XmlNamespaceManager nsmgr = new XmlNamespaceManager(xmlDoc.NameTable);
+            nsmgr.AddNamespace("ns", Ns);
+
+            var timeSeriesNodes = xmlDoc.SelectNodes(TimeSeries, nsmgr);
+
+            if(timeSeriesNodes != null)
             {
-                var period = timeSeries.SelectSingleNode(Period, nsmgr);
-
-                var startTime = DateTime.Parse(period.SelectSingleNode(IntervalStart, nsmgr).InnerText);
-                var resolution = period.SelectSingleNode(Resolution, nsmgr).InnerText;
-                var interval = resolution == ResolutionFormat ? TimeSpan.FromHours(1) : TimeSpan.FromMinutes(15);
-                var nodes = period.SelectNodes(Point, nsmgr);
-
-                foreach (XmlNode point in nodes)
+                foreach (XmlNode timeSeries in timeSeriesNodes)
                 {
-                    int position = int.Parse(point.SelectSingleNode(Position, nsmgr).InnerText);
-                    double price = double.Parse(point.SelectSingleNode(PriceAmount, nsmgr).InnerText);
-                    DateTime timestamp = startTime.Add(interval * (position));
-                    prices.Add(timestamp, price / 1000);
+                    if (TimeSeries != null)
+                    {
+                        XmlNode? period = timeSeries.SelectSingleNode(Period, nsmgr);
+
+                        if (period != null)
+                        {
+
+                            var startTime = DateTime.Parse(GetSingleNode(period, IntervalStart, nsmgr));
+                            var resolution = GetSingleNode(period, Resolution, nsmgr);
+                            var interval = resolution == ResolutionFormat ? TimeSpan.FromHours(1) : TimeSpan.FromMinutes(15);
+                            var pointNodes = period.SelectNodes(Point, nsmgr);
+
+                            if (pointNodes != null)
+                            {
+                                foreach (XmlNode point in pointNodes)
+                                {
+                                    int position = int.Parse(GetSingleNode(point, Position, nsmgr));
+                                    double price = double.Parse(GetSingleNode(point, PriceAmount, nsmgr));
+                                    DateTime timestamp = startTime.Add(interval * (position));
+                                    prices.Add(timestamp, price / 1000);
+                                }
+                            }
+                        }
+                    }
                 }
             }
+
+            return prices;
         }
 
+        /// <summary>
+        /// Get a single node from a node. Returns an empty string if node was notfound.
+        /// </summary>
+        private static string GetSingleNode(XmlNode? node, string key, XmlNamespaceManager nsmgr)
+        {
+            if (node != null)
+            {
+                var singleNode = node.SelectSingleNode(PriceAmount, nsmgr);
+
+                if (singleNode != null)
+                {
+                    return singleNode.InnerText;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Sometimes prices are missing. This routine fill the gaps with average prices.
+        /// </summary>
         private static void FillMissingPoints(Dictionary<DateTime, double> prices, DateTime periodStart, DateTime periodEnd, TimeSpan interval)
         {
             DateTime currentTime = periodStart;
@@ -121,28 +168,28 @@ namespace Services
             {
                 if (!prices.ContainsKey(currentTime))
                 {
-                    // Zoek de vorige en volgende bekende prijzen
+                    // Search for the previous and future prices.
                     var previousPrice = GetPreviousPrice(prices, currentTime);
                     var nextPrice = GetNextPrice(prices, currentTime);
 
                     if (previousPrice.HasValue && nextPrice.HasValue)
                     {
-                        // Bereken het gemiddelde van de vorige en volgende prijs
+                        // Calculate the average price.
                         prices[currentTime] = (previousPrice.Value + nextPrice.Value) / 2;
                     }
                     else if (previousPrice.HasValue)
                     {
-                        // Als er geen volgende prijs is, gebruik de vorige prijs
+                        // Use previous prices in case the next price is missing
                         prices[currentTime] = previousPrice.Value;
                     }
                     else if (nextPrice.HasValue)
                     {
-                        // Als er geen vorige prijs is, gebruik de volgende prijs
+                        // Use next prices in case the previous price is missing
                         prices[currentTime] = nextPrice.Value;
                     }
                     else
                     {
-                        // Geen vorige of volgende prijs beschikbaar; log een waarschuwing
+                        // Price information is missing. Write to log.
                         Console.WriteLine($"Waarschuwing: Geen prijsinformatie beschikbaar voor {currentTime}");
                     }
                 }
