@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Services;
+using SessyController.Services;
 
 namespace SessyController.Controllers
 {
@@ -8,18 +8,31 @@ namespace SessyController.Controllers
     public class BatteryManagementController : ControllerBase
     {
         private readonly ILogger<BatteryManagementController> _logger;
-        private readonly EPEXHourlyPricesService _epexPrijzenService;
+        private readonly BatteryManagementService _epexHourlyPricesService;
 
-        public BatteryManagementController(EPEXHourlyPricesService epexPrijzenService, ILogger<BatteryManagementController> logger)
+        public BatteryManagementController(BatteryManagementService epexHourlyPricesService, ILogger<BatteryManagementController> logger)
         {
             _logger = logger;
-            _epexPrijzenService = epexPrijzenService;
+            _epexHourlyPricesService = epexHourlyPricesService;
         }
 
+        /// <summary>
+        /// Gets the prices fetched by the background service.
+        /// </summary>
         [HttpGet(Name = "GetPrizes")]
         public Dictionary<DateTime, double> GetPrizes()
         {
-            return _epexPrijzenService.GetPrices();
+            return _epexHourlyPricesService?.GetPrices() ?? new Dictionary<DateTime, double>();
+        }
+
+        /// <summary>
+        /// Set the curren power used by your home in watts.
+        /// </summary>
+        /// <param name="watt"></param>
+        [HttpPut(Name = "SetCurrentPower")]
+        public void SetCurrentPower(double watt)
+        {
+            _epexHourlyPricesService.SetCurrentPower(watt);
         }
     }
 }

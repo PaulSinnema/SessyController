@@ -1,4 +1,4 @@
-using Services;
+using SessyController.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,8 +11,9 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddHttpClient();
-builder.Services.AddSingleton<EPEXHourlyPricesService>();
-builder.Services.AddHostedService(provider => provider.GetRequiredService<EPEXHourlyPricesService>());
+builder.Services.AddTransient(typeof(LoggingService<>));
+builder.Services.AddSingleton<BatteryManagementService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteryManagementService>());
 
 var app = builder.Build();
 

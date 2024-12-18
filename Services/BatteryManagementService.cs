@@ -1,35 +1,45 @@
 ﻿using System.Xml;
 
-namespace Services
+namespace SessyController.Services
 {
-    public class EPEXHourlyPricesService : BackgroundService
+    public class BatteryManagementService : BackgroundService
     {
-        private static readonly HttpClient client = new HttpClient();
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
         private const string SecurityTokenKey = "EPEX:SecurityToken";
-        private const string InDomain = "10YNL----------L"; // EIC-code voor Nederland
-        private const string Ns = "urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3";
-        private const string TimeSeries = "//ns:TimeSeries";
-        private const string IntervalStart = "ns:timeInterval/ns:start";
-        private const string Resolution = "ns:resolution";
         private const string DateFormat = "yyyyMMdd";
-        private const string PriceAmount = "ns:price.amount";
-        private const string Position = "ns:position";
-        private const string ResolutionFormat = "PT60M";
-        private const string Point = "ns:Point";
-        private const string Period = "ns:Period";
         private const string Time = "0000";
 
-        private static string? _securityToken;
-        private volatile Dictionary<DateTime, double>? _prices;
-        private static ILogger<EPEXHourlyPricesService>? _logger;
-        private static IHttpClientFactory? _httpClientFactory;
+        private const string Ns = "urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3";
+        private const string IntervalStart = "ns:timeInterval/ns:start";
+        private const string Period = "ns:Period";
+        private const string Point = "ns:Point";
+        private const string Position = "ns:position";
+        private const string PriceAmount = "ns:price.amount";
+        private const string Resolution = "ns:resolution";
+        private const string TimeSeries = "//ns:TimeSeries";
 
-        public EPEXHourlyPricesService(IConfiguration configuration, IHttpClientFactory httpClientFactory, ILogger<EPEXHourlyPricesService> logger)
+        private const string InDomain = "InDomain"; // EIC-code
+        private const string ResolutionFormat = "ResolutionFormat";
+
+        private static string? _securityToken;
+        private static string? _inDomain;
+        private static string? _resolutionFormat;
+        private volatile Dictionary<DateTime, double>? _prices;
+        private static IHttpClientFactory? _httpClientFactory;
+        private static LoggingService<BatteryManagementService>? _logger;
+
+        public BatteryManagementService(IConfiguration configuration, IHttpClientFactory httpClientFactory, LoggingService<BatteryManagementService> logger)
         {
             _securityToken = configuration[SecurityTokenKey];
+            _inDomain = configuration[InDomain];
+            _resolutionFormat = configuration[ResolutionFormat];
             _httpClientFactory = httpClientFactory;
             _logger = logger;
+        }
+
+        public void SetCurrentPower(double watt)
+        {
+
         }
 
         /// <summary>
@@ -48,13 +58,13 @@ namespace Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "An error occurred while processing EPEX prices.");
+                    _logger.LogException(ex, "An error occurred while processing EPEX prices.");
                 }
 
                 // Wait for 24 hours or until cancellation
                 try
                 {
-                    await Task.Delay(TimeSpan.FromHours(6), cancelationToken);
+                    await Task.Delay(TimeSpan.FromHours(1), cancelationToken);
                 }
                 catch (TaskCanceledException)
                 {
@@ -71,18 +81,8 @@ namespace Services
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
-            // Stap 1: Fetch day-ahead market prices
+            // Fetch day-ahead market prices
             _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow, cancellationToken);
-
-            // Stap 2: Voorspellen van energieverbruik en -opwekking
-            //var predictedConsumption = PredictEnergyConsumption();
-            //var predictedGeneration = PredictEnergyGeneration();
-
-            // Stap 3: Optimaliseren van batterijgebruik
-            //var batterySchedule = OptimizeBatteryUsage(prices, predictedConsumption, predictedGeneration);
-
-            // Uitvoeren van het laad- en ontlaadschema
-            //ExecuteBatterySchedule(batterySchedule);
         }
 
         /// <summary>
@@ -101,18 +101,27 @@ namespace Services
             date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
             string periodStart = date.ToString(DateFormat) + Time;
             string periodEnd = date.AddDays(2).ToString(DateFormat) + Time;
-            string url = $"{ApiUrl}?documentType=A44&in_Domain={InDomain}&out_Domain={InDomain}&periodStart={periodStart}&periodEnd={periodEnd}&securityToken={_securityToken}";
+            string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStart}&periodEnd={periodEnd}&securityToken={_securityToken}";
 
-            HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
-            response.EnsureSuccessStatusCode();
-            string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var client = _httpClientFactory?.CreateClient();
 
-            var prices = GetPrizes(responseBody);
+            if (client != null)
+            {
+                HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
+                response.EnsureSuccessStatusCode();
+                string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
-            // Detect and fill gaps in the prices with average prices.
-            FillMissingPoints(prices, date, date.AddDays(1), TimeSpan.FromHours(1));
+                var prices = GetPrizes(responseBody);
 
-            return prices.OrderBy(point => point.Key).ToDictionary();
+                // Detect and fill gaps in the prices with average prices.
+                FillMissingPoints(prices, date, date.AddDays(1), TimeSpan.FromHours(1));
+
+                return prices.OrderBy(point => point.Key).ToDictionary();
+            }
+
+            _logger.LogError("Unable to create HttpClient");
+
+            return new Dictionary<DateTime, double>();
         }
 
         /// <summary>
@@ -143,7 +152,7 @@ namespace Services
 
                             var startTime = DateTime.Parse(GetSingleNode(period, IntervalStart, nsmgr));
                             var resolution = GetSingleNode(period, Resolution, nsmgr);
-                            var interval = resolution == ResolutionFormat ? TimeSpan.FromHours(1) : TimeSpan.FromMinutes(15);
+                            var interval = resolution == _resolutionFormat ? TimeSpan.FromHours(1) : TimeSpan.FromMinutes(15);
                             var pointNodes = period.SelectNodes(Point, nsmgr);
 
                             if (pointNodes != null)
@@ -197,6 +206,8 @@ namespace Services
                     var previousPrice = GetPreviousPrice(prices, currentTime);
                     var nextPrice = GetNextPrice(prices, currentTime);
 
+                    _logger.LogInformation($"Price missing for {currentTime}");
+
                     if (previousPrice.HasValue && nextPrice.HasValue)
                     {
                         // Calculate the average price.
@@ -215,7 +226,7 @@ namespace Services
                     else
                     {
                         // Price information is missing. Write to log.
-                        Console.WriteLine($"Waarschuwing: Geen prijsinformatie beschikbaar voor {currentTime}");
+                        _logger.LogWarning($"No price information available for {currentTime}");
                     }
                 }
 
@@ -233,88 +244,6 @@ namespace Services
         {
             var nextTimes = prices.Keys.Where(t => t > timestamp).OrderBy(t => t);
             return nextTimes.Any() ? prices[nextTimes.First()] : (double?)null;
-        }
-
-        private static Dictionary<DateTime, double> PredictEnergyConsumption()
-        {
-            // Implementeer hier uw voorspellingsmodel voor energieverbruik
-            // Voorbeeld: retourneer een dummy-voorspelling
-            return Enumerable.Range(0, 24).ToDictionary(
-                i => DateTime.UtcNow.Date.AddHours(i),
-                i => 1.0 // Dummy-waarde in kWh
-            );
-        }
-
-        private static Dictionary<DateTime, double> PredictEnergyGeneration()
-        {
-            // Implementeer hier uw voorspellingsmodel voor energieopwekking
-            // Voorbeeld: retourneer een dummy-voorspelling
-            return Enumerable.Range(0, 24).ToDictionary(
-                i => DateTime.UtcNow.Date.AddHours(i),
-                i => 0.5 // Dummy-waarde in kWh
-            );
-        }
-
-        private static Dictionary<DateTime, double> OptimizeBatteryUsage(
-            Dictionary<DateTime, double> prices,
-            Dictionary<DateTime, double> predictedConsumption,
-            Dictionary<DateTime, double> predictedGeneration)
-        {
-            var schedule = new Dictionary<DateTime, double>();
-            double batteryCapacity = 10.0; // Totale batterijcapaciteit in kWh
-            double currentCharge = 5.0; // Huidige lading in kWh
-
-            foreach (var hour in prices.Keys.OrderBy(p => p))
-            {
-                double netConsumption = predictedConsumption[hour] - predictedGeneration[hour];
-                if (netConsumption > 0)
-                {
-                    // Verbruik is hoger dan opwekking
-                    if (currentCharge >= netConsumption)
-                    {
-                        // Gebruik batterij om aan vraag te voldoen
-                        schedule[hour] = -netConsumption;
-                        currentCharge -= netConsumption;
-                    }
-                    else
-                    {
-                        // Batterij is niet voldoende; koop resterende energie in
-                        schedule[hour] = -currentCharge;
-                        currentCharge = 0;
-                    }
-                }
-                else
-                {
-                    // Opwekking is hoger dan verbruik
-                    double surplus = -netConsumption;
-                    if (currentCharge + surplus <= batteryCapacity)
-                    {
-                        // Laad batterij op met overschot
-                        schedule[hour] = surplus;
-                        currentCharge += surplus;
-                    }
-                    else
-                    {
-                        // Batterij is vol; verkoop overschot
-                        schedule[hour] = batteryCapacity - currentCharge;
-                        currentCharge = batteryCapacity;
-                    }
-                }
-            }
-
-            return schedule;
-        }
-
-        private static void ExecuteBatterySchedule(Dictionary<DateTime, double> schedule)
-        {
-            foreach (var entry in schedule)
-            {
-                DateTime time = entry.Key;
-                double power = entry.Value; // Positief voor opladen, negatief voor ontladen
-
-                // Implementeer hier de aansturing van uw batterij op het aangegeven tijdstip
-                Console.WriteLine($"{time}: {(power >= 0 ? "Opladen" : "Ontladen")} met {Math.Abs(power)} kWh");
-            }
         }
     }
 }
