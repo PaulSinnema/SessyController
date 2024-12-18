@@ -2,7 +2,7 @@
 
 namespace Services
 {
-    public class EPEXPrijzenService
+    public class EPEXHourlyPricesService
     {
         private static readonly HttpClient client = new HttpClient();
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
@@ -21,9 +21,10 @@ namespace Services
         private const string Time = "0000";
         private Timer? _timer;
         private static string? _securityToken;
+        private volatile Dictionary<DateTime, double> _prices;
 
 
-        public EPEXPrijzenService(IConfiguration configuration)
+        public EPEXHourlyPricesService(IConfiguration configuration)
         {
             _securityToken = configuration[SecurityTokenKey];
         }
@@ -39,10 +40,13 @@ namespace Services
             _timer = new Timer(Process, null, 1, 1000 * 3600 * 24);
         }
 
+        /// <summary>
+        /// This routine is called periodicly through a timer.
+        /// </summary>
         public async void Process(object? state)
         {
-            // Stap 1: Ophalen van day-ahead marktprijzen
-            var prices = await FetchDayAheadPricesAsync(DateTime.UtcNow);
+            // Stap 1: Fetch day-ahead market prices
+            _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow);
 
             // Stap 2: Voorspellen van energieverbruik en -opwekking
             //var predictedConsumption = PredictEnergyConsumption();
@@ -53,6 +57,14 @@ namespace Services
 
             // Uitvoeren van het laad- en ontlaadschema
             //ExecuteBatterySchedule(batterySchedule);
+        }
+
+        /// <summary>
+        /// Get the fetched prices for today and tomorrow (if present).
+        /// </summary>
+        public Dictionary<DateTime, double> GetPrices() 
+        {
+            return _prices;
         }
 
         private static async Task<Dictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date)
@@ -72,8 +84,17 @@ namespace Services
 
             XmlNamespaceManager nsmgr = new XmlNamespaceManager(xmlDoc.NameTable);
             nsmgr.AddNamespace("ns", Ns);
+            GetPrizes(prices, xmlDoc, nsmgr);
 
-            foreach (XmlNode timeSeries in xmlDoc.SelectNodes(TimeSeries, nsmgr))   
+            // Detecteer en vul ontbrekende punten in
+            FillMissingPoints(prices, date, date.AddDays(1), TimeSpan.FromHours(1));
+
+            return prices.OrderBy(point => point.Key).ToDictionary();
+        }
+
+        private static void GetPrizes(Dictionary<DateTime, double> prices, XmlDocument xmlDoc, XmlNamespaceManager nsmgr)
+        {
+            foreach (XmlNode timeSeries in xmlDoc.SelectNodes(TimeSeries, nsmgr))
             {
                 var period = timeSeries.SelectSingleNode(Period, nsmgr);
 
@@ -90,11 +111,6 @@ namespace Services
                     prices.Add(timestamp, price / 1000);
                 }
             }
-
-            // Detecteer en vul ontbrekende punten in
-            FillMissingPoints(prices, date, date.AddDays(1), TimeSpan.FromHours(1));
-
-            return prices.OrderBy(point => point.Key).ToDictionary();
         }
 
         private static void FillMissingPoints(Dictionary<DateTime, double> prices, DateTime periodStart, DateTime periodEnd, TimeSpan interval)
