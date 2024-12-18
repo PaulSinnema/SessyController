@@ -1,9 +1,8 @@
-﻿using System.Drawing;
-using System.Xml;
+﻿using System.Xml;
 
 namespace Services
 {
-    public class EPEXHourlyPricesService
+    public class EPEXHourlyPricesService : BackgroundService
     {
         private static readonly HttpClient client = new HttpClient();
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
@@ -20,34 +19,60 @@ namespace Services
         private const string Point = "ns:Point";
         private const string Period = "ns:Period";
         private const string Time = "0000";
-        private Timer? _timer;
+
         private static string? _securityToken;
         private volatile Dictionary<DateTime, double>? _prices;
+        private static ILogger<EPEXHourlyPricesService>? _logger;
+        private static IHttpClientFactory? _httpClientFactory;
 
-
-        public EPEXHourlyPricesService(IConfiguration configuration)
+        public EPEXHourlyPricesService(IConfiguration configuration, IHttpClientFactory httpClientFactory, ILogger<EPEXHourlyPricesService> logger)
         {
             _securityToken = configuration[SecurityTokenKey];
-        }
-
-        public void Start()
-        {
-            if (_timer != null)
-            {
-                _timer.Dispose();
-                _timer = null;
-            }
-
-            _timer = new Timer(Process, null, 1, 1000 * 3600 * 24);
+            _httpClientFactory = httpClientFactory;
+            _logger = logger;
         }
 
         /// <summary>
-        /// This routine is called periodicly through a timer.
+        /// Executes the background service, fetching prices periodically.
         /// </summary>
-        public async void Process(object? state)
+        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
+        {
+            _logger.LogInformation("EPEXHourlyPricesService started.");
+
+            // Loop to fetch prices every 24 hours
+            while (!cancelationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Process(cancelationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "An error occurred while processing EPEX prices.");
+                }
+
+                // Wait for 24 hours or until cancellation
+                try
+                {
+                    await Task.Delay(TimeSpan.FromHours(6), cancelationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    // Ignore cancellation exception during delay
+                }
+            }
+
+            _logger.LogInformation("EPEXHourlyPricesService stopped.");
+
+        }
+
+        /// <summary>
+        /// This routine is called periodicly as a background task.
+        /// </summary>
+        public async Task Process(CancellationToken cancellationToken)
         {
             // Stap 1: Fetch day-ahead market prices
-            _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow);
+            _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow, cancellationToken);
 
             // Stap 2: Voorspellen van energieverbruik en -opwekking
             //var predictedConsumption = PredictEnergyConsumption();
@@ -71,16 +96,16 @@ namespace Services
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E Api.
         /// </summary>
-        private static async Task<Dictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date)
+        private static async Task<Dictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, CancellationToken cancellationToken)
         {
             date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
             string periodStart = date.ToString(DateFormat) + Time;
             string periodEnd = date.AddDays(2).ToString(DateFormat) + Time;
             string url = $"{ApiUrl}?documentType=A44&in_Domain={InDomain}&out_Domain={InDomain}&periodStart={periodStart}&periodEnd={periodEnd}&securityToken={_securityToken}";
 
-            HttpResponseMessage response = await client.GetAsync(url);
+            HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
             response.EnsureSuccessStatusCode();
-            string responseBody = await response.Content.ReadAsStringAsync();
+            string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
             var prices = GetPrizes(responseBody);
 
@@ -146,7 +171,7 @@ namespace Services
         {
             if (node != null)
             {
-                var singleNode = node.SelectSingleNode(PriceAmount, nsmgr);
+                var singleNode = node.SelectSingleNode(key, nsmgr);
 
                 if (singleNode != null)
                 {

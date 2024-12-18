@@ -16,10 +16,10 @@ namespace SessyController.Controllers
             _epexPrijzenService = epexPrijzenService;
         }
 
-        [HttpGet(Name = "Start")]
-        public void Start()
+        [HttpGet(Name = "GetPrizes")]
+        public Dictionary<DateTime, double> GetPrizes()
         {
-            _epexPrijzenService.Start();
+            return _epexPrijzenService.GetPrices();
         }
     }
 }
