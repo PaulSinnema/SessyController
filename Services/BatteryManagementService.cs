@@ -6,21 +6,21 @@ namespace SessyController.Services
     public class BatteryManagementService : BackgroundService
     {
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
-        private const string SecurityTokenKey = "EPEX:SecurityToken";
-        private const string DateFormat = "yyyyMMdd";
-        private const string Time = "0000";
+        private const string FormatDate = "yyyyMMdd";
+        private const string FormatTime = "0000";
 
-        private const string Ns = "urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3";
-        private const string IntervalStart = "ns:timeInterval/ns:start";
-        private const string Period = "ns:Period";
-        private const string Point = "ns:Point";
-        private const string Position = "ns:position";
-        private const string PriceAmount = "ns:price.amount";
-        private const string Resolution = "ns:resolution";
-        private const string TimeSeries = "//ns:TimeSeries";
+        private const string TagNs = "urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3";
+        private const string TagIntervalStart = "ns:timeInterval/ns:start";
+        private const string TagPeriod = "ns:Period";
+        private const string TagPoint = "ns:Point";
+        private const string TagPosition = "ns:position";
+        private const string TagPriceAmount = "ns:price.amount";
+        private const string TagResolution = "ns:resolution";
+        private const string TagTimeSeries = "//ns:TimeSeries";
 
-        private const string InDomain = "InDomain"; // EIC-code
-        private const string ResolutionFormat = "ResolutionFormat";
+        private const string ConfigInDomain = "InDomain"; // EIC-code
+        private const string ConfigResolutionFormat = "ResolutionFormat";
+        private const string ConfigSecurityTokenKey = "EPEX:SecurityToken";
 
         private static string? _securityToken;
         private static string? _inDomain;
@@ -31,9 +31,9 @@ namespace SessyController.Services
 
         public BatteryManagementService(IConfiguration configuration, IHttpClientFactory httpClientFactory, LoggingService<BatteryManagementService> logger)
         {
-            _securityToken = configuration[SecurityTokenKey];
-            _inDomain = configuration[InDomain];
-            _resolutionFormat = configuration[ResolutionFormat];
+            _securityToken = configuration[ConfigSecurityTokenKey];
+            _inDomain = configuration[ConfigInDomain];
+            _resolutionFormat = configuration[ConfigResolutionFormat];
             _httpClientFactory = httpClientFactory;
             _logger = logger;
         }
@@ -100,8 +100,8 @@ namespace SessyController.Services
         private static async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, CancellationToken cancellationToken)
         {
             date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
-            string periodStart = date.ToString(DateFormat) + Time;
-            string periodEnd = date.AddDays(2).ToString(DateFormat) + Time;
+            string periodStart = date.ToString(FormatDate) + FormatTime;
+            string periodEnd = date.AddDays(2).ToString(FormatDate) + FormatTime;
             string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStart}&periodEnd={periodEnd}&securityToken={_securityToken}";
 
             var client = _httpClientFactory?.CreateClient();
@@ -138,32 +138,32 @@ namespace SessyController.Services
             xmlDoc.LoadXml(responseBody);
 
             XmlNamespaceManager nsmgr = new XmlNamespaceManager(xmlDoc.NameTable);
-            nsmgr.AddNamespace("ns", Ns);
+            nsmgr.AddNamespace("ns", TagNs);
 
-            var timeSeriesNodes = xmlDoc.SelectNodes(TimeSeries, nsmgr);
+            var timeSeriesNodes = xmlDoc.SelectNodes(TagTimeSeries, nsmgr);
 
             if (timeSeriesNodes != null)
             {
                 foreach (XmlNode timeSeries in timeSeriesNodes)
                 {
-                    if (TimeSeries != null)
+                    if (TagTimeSeries != null)
                     {
-                        XmlNode? period = timeSeries.SelectSingleNode(Period, nsmgr);
+                        XmlNode? period = timeSeries.SelectSingleNode(TagPeriod, nsmgr);
 
                         if (period != null)
                         {
 
-                            var startTime = DateTime.Parse(GetSingleNode(period, IntervalStart, nsmgr));
-                            var resolution = GetSingleNode(period, Resolution, nsmgr);
+                            var startTime = DateTime.Parse(GetSingleNode(period, TagIntervalStart, nsmgr));
+                            var resolution = GetSingleNode(period, TagResolution, nsmgr);
                             var interval = resolution == _resolutionFormat ? TimeSpan.FromHours(1) : TimeSpan.FromMinutes(15);
-                            var pointNodes = period.SelectNodes(Point, nsmgr);
+                            var pointNodes = period.SelectNodes(TagPoint, nsmgr);
 
                             if (pointNodes != null)
                             {
                                 foreach (XmlNode point in pointNodes)
                                 {
-                                    int position = int.Parse(GetSingleNode(point, Position, nsmgr));
-                                    double price = double.Parse(GetSingleNode(point, PriceAmount, nsmgr));
+                                    int position = int.Parse(GetSingleNode(point, TagPosition, nsmgr));
+                                    double price = double.Parse(GetSingleNode(point, TagPriceAmount, nsmgr));
                                     DateTime timestamp = startTime.Add(interval * (position));
 
                                     double priceWattHour = price / 1000;
