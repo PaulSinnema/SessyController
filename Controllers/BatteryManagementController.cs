@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Mvc;
 using SessyController.Services;
 
@@ -20,9 +21,9 @@ namespace SessyController.Controllers
         /// Gets the prices fetched by the background service.
         /// </summary>
         [HttpGet(Name = "GetPrizes")]
-        public Dictionary<DateTime, double> GetPrizes()
+        public ConcurrentDictionary<DateTime, double> GetPrizes()
         {
-            return _epexHourlyPricesService?.GetPrices() ?? new Dictionary<DateTime, double>();
+            return _epexHourlyPricesService?.GetPrices() ?? new ConcurrentDictionary<DateTime, double>();
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
-﻿using System.Xml;
+﻿using System.Collections.Concurrent;
+using System.Xml;
 
 namespace SessyController.Services
 {
@@ -24,7 +25,7 @@ namespace SessyController.Services
         private static string? _securityToken;
         private static string? _inDomain;
         private static string? _resolutionFormat;
-        private volatile Dictionary<DateTime, double>? _prices;
+        private volatile ConcurrentDictionary<DateTime, double>? _prices;
         private static IHttpClientFactory? _httpClientFactory;
         private static LoggingService<BatteryManagementService>? _logger;
 
@@ -88,7 +89,7 @@ namespace SessyController.Services
         /// <summary>
         /// Get the fetched prices for today and tomorrow (if present).
         /// </summary>
-        public Dictionary<DateTime, double>? GetPrices() 
+        public ConcurrentDictionary<DateTime, double>? GetPrices()
         {
             return _prices;
         }
@@ -96,7 +97,7 @@ namespace SessyController.Services
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E Api.
         /// </summary>
-        private static async Task<Dictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, CancellationToken cancellationToken)
+        private static async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, CancellationToken cancellationToken)
         {
             date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
             string periodStart = date.ToString(DateFormat) + Time;
@@ -116,20 +117,22 @@ namespace SessyController.Services
                 // Detect and fill gaps in the prices with average prices.
                 FillMissingPoints(prices, date, date.AddDays(1), TimeSpan.FromHours(1));
 
-                return prices.OrderBy(point => point.Key).ToDictionary();
+                var result = prices.OrderBy(point => point.Key).ToDictionary();
+
+                return new ConcurrentDictionary<DateTime, double>(result);
             }
 
             _logger.LogError("Unable to create HttpClient");
 
-            return new Dictionary<DateTime, double>();
+            return new ConcurrentDictionary<DateTime, double>();
         }
 
         /// <summary>
         /// Get the prices and timestamps from the XML response.
         /// </summary>
-        private static Dictionary<DateTime, double> GetPrizes(string responseBody)
+        private static ConcurrentDictionary<DateTime, double> GetPrizes(string responseBody)
         {
-            var prices = new Dictionary<DateTime, double>();
+            var prices = new ConcurrentDictionary<DateTime, double>();
 
             XmlDocument xmlDoc = new XmlDocument();
             xmlDoc.LoadXml(responseBody);
@@ -139,7 +142,7 @@ namespace SessyController.Services
 
             var timeSeriesNodes = xmlDoc.SelectNodes(TimeSeries, nsmgr);
 
-            if(timeSeriesNodes != null)
+            if (timeSeriesNodes != null)
             {
                 foreach (XmlNode timeSeries in timeSeriesNodes)
                 {
@@ -162,7 +165,10 @@ namespace SessyController.Services
                                     int position = int.Parse(GetSingleNode(point, Position, nsmgr));
                                     double price = double.Parse(GetSingleNode(point, PriceAmount, nsmgr));
                                     DateTime timestamp = startTime.Add(interval * (position));
-                                    prices.Add(timestamp, price / 1000);
+
+                                    double priceWattHour = price / 1000;
+
+                                    prices.AddOrUpdate(timestamp, priceWattHour, (key, oldValue) => priceWattHour);
                                 }
                             }
                         }
@@ -194,7 +200,7 @@ namespace SessyController.Services
         /// <summary>
         /// Sometimes prices are missing. This routine fill the gaps with average prices.
         /// </summary>
-        private static void FillMissingPoints(Dictionary<DateTime, double> prices, DateTime periodStart, DateTime periodEnd, TimeSpan interval)
+        private static void FillMissingPoints(ConcurrentDictionary<DateTime, double> prices, DateTime periodStart, DateTime periodEnd, TimeSpan interval)
         {
             DateTime currentTime = periodStart;
 
@@ -234,13 +240,13 @@ namespace SessyController.Services
             }
         }
 
-        private static double? GetPreviousPrice(Dictionary<DateTime, double> prices, DateTime timestamp)
+        private static double? GetPreviousPrice(ConcurrentDictionary<DateTime, double> prices, DateTime timestamp)
         {
             var previousTimes = prices.Keys.Where(t => t < timestamp).OrderByDescending(t => t);
             return previousTimes.Any() ? prices[previousTimes.First()] : (double?)null;
         }
 
-        private static double? GetNextPrice(Dictionary<DateTime, double> prices, DateTime timestamp)
+        private static double? GetNextPrice(ConcurrentDictionary<DateTime, double> prices, DateTime timestamp)
         {
             var nextTimes = prices.Keys.Where(t => t > timestamp).OrderBy(t => t);
             return nextTimes.Any() ? prices[nextTimes.First()] : (double?)null;
