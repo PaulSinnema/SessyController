@@ -20,13 +20,14 @@ namespace SessyController.Services
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "13.18.2.0 (NJsonSchema v10.8.0.0 (Newtonsoft.Json v11.0.0.0))")]
     public partial class SessyService
     {
-        private string _baseUrl = "";
+        private const string ConfigBaseUrl = "Sessy:BaseUrl";
+        private string _baseUrl = @"http://localhost:3001";
         private System.Net.Http.HttpClient _httpClient;
         private System.Lazy<Newtonsoft.Json.JsonSerializerSettings> _settings;
 
-        public SessyService(string baseUrl, System.Net.Http.HttpClient httpClient)
+        public SessyService(IConfiguration configuration, System.Net.Http.HttpClient httpClient)
         {
-            BaseUrl = baseUrl;
+            BaseUrl = configuration[ConfigBaseUrl];
             _httpClient = httpClient;
             _settings = new System.Lazy<Newtonsoft.Json.JsonSerializerSettings>(CreateSerializerSettings);
         }

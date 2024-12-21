@@ -9,18 +9,22 @@ namespace SessyController.Controllers
     public class BatteryManagementController : ControllerBase
     {
         private readonly ILogger<BatteryManagementController> _logger;
-        private readonly BatteryManagementService _epexHourlyPricesService;
+        private readonly EpexHourlyPricesService _epexHourlyPricesService;
+        private readonly SessyService? _sessyService;
 
-        public BatteryManagementController(BatteryManagementService epexHourlyPricesService, ILogger<BatteryManagementController> logger)
+        public BatteryManagementController(EpexHourlyPricesService epexHourlyPricesService,
+                                           SessyService sessyService,
+                                           ILogger<BatteryManagementController> logger)
         {
             _logger = logger;
+            _sessyService = sessyService;
             _epexHourlyPricesService = epexHourlyPricesService;
         }
 
         /// <summary>
         /// Gets the prices fetched by the background service.
         /// </summary>
-        [HttpGet(Name = "GetPrizes")]
+        [HttpGet("EpexHourlyPricesService", Name = "GetPrizes")]
         public ConcurrentDictionary<DateTime, double> GetPrizes()
         {
             return _epexHourlyPricesService?.GetPrices() ?? new ConcurrentDictionary<DateTime, double>();
@@ -29,11 +33,22 @@ namespace SessyController.Controllers
         /// <summary>
         /// Set the curren power used by your home in watts.
         /// </summary>
-        /// <param name="watt"></param>
-        [HttpPut(Name = "SetCurrentPower")]
+        [HttpPut("EpexHourlyPricesService", Name = "SetCurrentPower")]
         public void SetCurrentPower(double watt)
         {
             _epexHourlyPricesService.SetCurrentPower(watt);
+        }
+
+        /// <summary>
+        /// Get the status of the battery.
+        /// </summary>
+        [HttpGet("BatteryManagementService", Name = "GetSessySystemState")]
+        public async Task<int> GetSessySystemState()
+        {
+            var powerStatus = await _sessyService.StatusAsync();
+
+            return powerStatus.Sessy.Power;
+
         }
     }
 }
