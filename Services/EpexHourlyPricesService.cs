@@ -87,11 +87,17 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Get the fetched prices for today and tomorrow (if present).
+        /// Get the fetched prices for today and tomorrow (if present) as a sorted dictionary.
         /// </summary>
-        public ConcurrentDictionary<DateTime, double>? GetPrices()
+        public SortedDictionary<DateTime, double> GetPrices()
         {
-            return _prices;
+            if (_prices != null)
+            {
+                var result = _prices.OrderBy(vk => vk.Key);
+                return new SortedDictionary<DateTime, double>(result.ToDictionary(kv => kv.Key, kv => kv.Value));
+            }
+            else
+                return new SortedDictionary<DateTime, double>();
         }
 
         /// <summary>
@@ -117,9 +123,7 @@ namespace SessyController.Services
                 // Detect and fill gaps in the prices with average prices.
                 FillMissingPoints(prices, date, date.AddDays(1), TimeSpan.FromHours(1));
 
-                var result = prices.OrderBy(point => point.Key).ToDictionary();
-
-                return new ConcurrentDictionary<DateTime, double>(result);
+                return prices;
             }
 
             _logger.LogError("Unable to create HttpClient");

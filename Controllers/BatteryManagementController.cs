@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Mvc;
 using SessyController.Services;
 
@@ -9,8 +8,8 @@ namespace SessyController.Controllers
     public class BatteryManagementController : ControllerBase
     {
         private readonly ILogger<BatteryManagementController> _logger;
-        private readonly EpexHourlyPricesService _epexHourlyPricesService;
         private readonly SessyService? _sessyService;
+        private readonly EpexHourlyPricesService _epexHourlyPricesService;
 
         public BatteryManagementController(EpexHourlyPricesService epexHourlyPricesService,
                                            SessyService sessyService,
@@ -25,9 +24,9 @@ namespace SessyController.Controllers
         /// Gets the prices fetched by the background service.
         /// </summary>
         [HttpGet("EpexHourlyPricesService", Name = "GetPrizes")]
-        public ConcurrentDictionary<DateTime, double> GetPrizes()
+        public SortedDictionary<DateTime, double> GetPrizes()
         {
-            return _epexHourlyPricesService?.GetPrices() ?? new ConcurrentDictionary<DateTime, double>();
+            return _epexHourlyPricesService.GetPrices();
         }
 
         /// <summary>
