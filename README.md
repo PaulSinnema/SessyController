@@ -28,7 +28,7 @@ In the AppSettings.json the following must be configured for your personal insta
                     "UserId": "Dongle user id",         // Move to secrets.json
                     "Password": "Dongle password",      // Move to secrets.json
                     "BaseUrl": "http://192.168.1.xxx",  // IP Address of your first battery
-                    //"BaseUrl": "http://host.docker.internal:3001" // Mock server (Mockoon)
+                    // "BaseUrl": "http://host.docker.internal:3001" // Mock server (Mockoon)
                 },
                 "2": {
                     "Name": "Battery 2",
