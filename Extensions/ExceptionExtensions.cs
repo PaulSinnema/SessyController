@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using System;
 
 namespace SessyController.Extensions
 {
@@ -11,7 +10,7 @@ namespace SessyController.Extensions
         /// </summary>
         /// <param name="exception">The exception to format.</param>
         /// <returns>A formatted string with details about the exception and its inner exceptions.</returns>
-        public static string ToDetailedString(this Exception exception)
+        public static string ToDetailedString(this Exception? exception)
         {
             if (exception == null) return string.Empty;
 

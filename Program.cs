@@ -47,7 +47,6 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-
 app.UseHttpsRedirection();
 
 app.UseAuthorization();

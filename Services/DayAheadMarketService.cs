@@ -18,9 +18,9 @@ namespace SessyController.Services
         private const string TagResolution = "ns:resolution";
         private const string TagTimeSeries = "//ns:TimeSeries";
 
-        private const string ConfigInDomain = "InDomain"; // EIC-code
-        private const string ConfigResolutionFormat = "ResolutionFormat";
-        private const string ConfigSecurityTokenKey = "EPEX:SecurityToken";
+        private const string ConfigInDomain = "ENTPO-E:InDomain"; // EIC-code
+        private const string ConfigResolutionFormat = "ENTPO-E:ResolutionFormat";
+        private const string ConfigSecurityTokenKey = "ENTPO-E:SecurityToken";
 
         private static string? _securityToken;
         private static string? _inDomain;
@@ -36,11 +36,6 @@ namespace SessyController.Services
             _resolutionFormat = configuration[ConfigResolutionFormat];
             _httpClientFactory = httpClientFactory;
             _logger = logger;
-        }
-
-        public void SetCurrentPower(double watt)
-        {
-
         }
 
         /// <summary>

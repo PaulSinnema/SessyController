@@ -9,45 +9,33 @@ namespace SessyController.Controllers
     {
         private readonly ILogger<BatteryManagementController> _logger;
         private readonly SessyService? _sessyService;
-        private readonly DayAheadMarketService _epexHourlyPricesService;
+        private readonly DayAheadMarketService __dayAheadMarketService;
 
-        public BatteryManagementController(DayAheadMarketService epexHourlyPricesService,
+        public BatteryManagementController(DayAheadMarketService DayAheadMarketService,
                                            SessyService sessyService,
                                            ILogger<BatteryManagementController> logger)
         {
             _logger = logger;
             _sessyService = sessyService;
-            _epexHourlyPricesService = epexHourlyPricesService;
+            __dayAheadMarketService = DayAheadMarketService;
         }
 
         /// <summary>
         /// Gets the prices fetched by the background service.
         /// </summary>
-        [HttpGet("EpexHourlyPricesService", Name = "GetPrizes")]
+        [HttpGet("DayAheadMarketService", Name = "GetPrizes")]
         public SortedDictionary<DateTime, double> GetPrizes()
         {
-            return _epexHourlyPricesService.GetPrices();
+            return __dayAheadMarketService.GetPrices();
         }
 
         /// <summary>
         /// Set the curren power used by your home in watts.
         /// </summary>
-        [HttpPut("EpexHourlyPricesService", Name = "SetCurrentPower")]
+        [HttpPut("DayAheadMarketService", Name = "SetCurrentPower")]
         public void SetCurrentPower(double watt)
         {
-            _epexHourlyPricesService.SetCurrentPower(watt);
-        }
-
-        /// <summary>
-        /// Get the status of the battery.
-        /// </summary>
-        [HttpGet("BatteryManagementService", Name = "GetSessySystemState")]
-        public async Task<int> GetSessySystemState()
-        {
-            var powerStatus = await _sessyService.StatusAsync();
-
-            return powerStatus.Sessy.Power;
-
+            _sessyService.SetCurrentPower(watt);
         }
     }
 }
