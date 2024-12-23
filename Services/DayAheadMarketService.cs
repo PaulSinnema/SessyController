@@ -18,9 +18,9 @@ namespace SessyController.Services
         private const string TagResolution = "ns:resolution";
         private const string TagTimeSeries = "//ns:TimeSeries";
 
-        private const string ConfigInDomain = "ENTPO-E:InDomain"; // EIC-code
-        private const string ConfigResolutionFormat = "ENTPO-E:ResolutionFormat";
-        private const string ConfigSecurityTokenKey = "ENTPO-E:SecurityToken";
+        private const string ConfigInDomain = "ENTSO-E:InDomain"; // EIC-code
+        private const string ConfigResolutionFormat = "ENTSO-E:ResolutionFormat";
+        private const string ConfigSecurityTokenKey = "ENTSO-E:SecurityToken";
 
         private static string? _securityToken;
         private static string? _inDomain;
