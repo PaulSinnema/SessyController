@@ -4,7 +4,7 @@ This code aims to be a better solution for (dis)charging the Sessy batteries in 
 
 To use this code you need to create an account and get a SecurityToken from ENTSO-E.
 
-In the AppSettings.json the following must configured for your personal installation:
+In the AppSettings.json the following must be configured for your personal installation:
 
     {
         "Logging": {
@@ -25,23 +25,23 @@ In the AppSettings.json the following must configured for your personal installa
             "Batteries": {
                 "1": {
                     "Name": "Battery 1",
-                    "UserId": "Dongle user id",     // Move to secrets.json
-                    "Password": "Dongle password",  // Move to secrets.json
-                    "BaseUrl": "http://192.168.1.xxx", // IP Address of your first battery
+                    "UserId": "Dongle user id",         // Move to secrets.json
+                    "Password": "Dongle password",      // Move to secrets.json
+                    "BaseUrl": "http://192.168.1.xxx",  // IP Address of your first battery
                     //"BaseUrl": "http://host.docker.internal:3001" // Mock server (Mockoon)
                 },
                 "2": {
                     "Name": "Battery 2",
-                    "UserId": "Dongle user id",     // Move to secrets.json
-                    "Password": "Dongle password",  // Move to secrets.json
-                    "BaseUrl": "http://192.168.1.xxx", // IP Address of your second battery
+                    "UserId": "Dongle user id",         // Move to secrets.json
+                    "Password": "Dongle password",      // Move to secrets.json
+                    "BaseUrl": "http://192.168.1.xxx",  // IP Address of your second battery
                     // "BaseUrl": "http://host.docker.internal:3001" // Mock server (Mockoon)
                 },
                 "3": {
                     "Name": "Battery 3",
-                    "UserId": "Dongle user id",     // Move to secrets.json
-                    "Password": "Dongle password",  // Move to secrets.json
-                    "BaseUrl": "http://192.168.1.xxx", // // IP Address of your third battery
+                    "UserId": "Dongle user id",         // Move to secrets.json
+                    "Password": "Dongle password",      // Move to secrets.json
+                    "BaseUrl": "http://192.168.1.xxx",  // // IP Address of your third battery
                     // "BaseUrl": "http://host.docker.internal:3001" // Mock server (Mockoon)
                 }
             }
