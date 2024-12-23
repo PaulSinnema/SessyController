@@ -38,7 +38,7 @@ namespace SessyController.Controllers
         }
 
 
-        [HttpGet("SessyService", Name = "{id}/PowerStatus")]
+        [HttpGet("SessyService:PowerStatus", Name = "{id}/PowerStatus")]
         public async Task<IActionResult> GetPowerStatus(string id)
         {
             if (!_batteryConfig.Batteries.TryGetValue(id, out var battery))
@@ -47,6 +47,19 @@ namespace SessyController.Controllers
             }
 
             var status = await _sessyService.GetPowerStatusAsync(battery);
+
+            return Ok(status);
+        }
+
+        [HttpGet("SessyService:GetActivePowerStrategy", Name = "{id}/GetActivePowerStrategy")]
+        public async Task<IActionResult> GetActivePowerStrategy(string id)
+        {
+            if (!_batteryConfig.Batteries.TryGetValue(id, out var battery))
+            {
+                return NotFound($"Battery with ID {id} not found.");
+            }
+
+            var status = await _sessyService.GetActivePowerStrategyAsync(battery);
 
             return Ok(status);
         }
