@@ -32,7 +32,8 @@ namespace SessyController.Services
             var response = await client.GetAsync("/api/v1/power/status");
             response.EnsureSuccessStatusCode();
             var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<PowerStatus>(content);
+            var powerStatus = JsonConvert.DeserializeObject<PowerStatus>(content);
+            return powerStatus;
         }
 
         public async Task<ActivePowerStrategy?> GetActivePowerStrategyAsync(SessyBattery battery)
@@ -66,29 +67,57 @@ namespace SessyController.Services
 
     public class PowerStatus
     {
-        public SessyStatus Sessy { get; set; }
+        [JsonProperty("status")]
+        public string Status { get; set; }
+
+        [JsonProperty("sessy")]
+        public Sessy Sessy { get; set; }
+
+        [JsonProperty("renewable_energy_phase1")]
         public Phase RenewableEnergyPhase1 { get; set; }
+
+        [JsonProperty("renewable_energy_phase2")]
         public Phase RenewableEnergyPhase2 { get; set; }
+
+        [JsonProperty("renewable_energy_phase3")]
         public Phase RenewableEnergyPhase3 { get; set; }
-        public int Frequency { get; set; }
     }
 
-    public class SessyStatus
+    public class Sessy
     {
+        [JsonProperty("state_of_charge")]
         public double StateOfCharge { get; set; }
+
+        [JsonProperty("power")]
         public int Power { get; set; }
+
+        [JsonProperty("power_setpoint")]
         public int PowerSetpoint { get; set; }
+
+        [JsonProperty("system_state")]
         public string SystemState { get; set; }
+
+        [JsonProperty("system_state_details")]
         public string SystemStateDetails { get; set; }
+
+        [JsonProperty("frequency")]
+        public int Frequency { get; set; }
+
+        [JsonProperty("inverter_current_ma")]
+        public int InverterCurrentMa { get; set; }
     }
 
     public class Phase
     {
-        public double VoltageRms { get; set; }
-        public double CurrentRms { get; set; }
+        [JsonProperty("voltage_rms")]
+        public int VoltageRms { get; set; }
+
+        [JsonProperty("current_rms")]
+        public int CurrentRms { get; set; }
+
+        [JsonProperty("power")]
         public int Power { get; set; }
     }
-
     public class ActivePowerStrategy
     {
         public string Strategy { get; set; }
