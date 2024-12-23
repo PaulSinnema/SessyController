@@ -15,9 +15,9 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddHttpClient();
 builder.Services.AddTransient(typeof(LoggingService<>));
-builder.Services.AddSingleton<EpexHourlyPricesService>();
+builder.Services.AddSingleton<DayAheadMarketService>();
 builder.Services.AddScoped<SessyService>();
-builder.Services.AddHostedService(provider => provider.GetRequiredService<EpexHourlyPricesService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 
 var app = builder.Build();
 

@@ -9,9 +9,9 @@ namespace SessyController.Controllers
     {
         private readonly ILogger<BatteryManagementController> _logger;
         private readonly SessyService? _sessyService;
-        private readonly EpexHourlyPricesService _epexHourlyPricesService;
+        private readonly DayAheadMarketService _epexHourlyPricesService;
 
-        public BatteryManagementController(EpexHourlyPricesService epexHourlyPricesService,
+        public BatteryManagementController(DayAheadMarketService epexHourlyPricesService,
                                            SessyService sessyService,
                                            ILogger<BatteryManagementController> logger)
         {

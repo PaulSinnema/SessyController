@@ -3,7 +3,7 @@ using System.Xml;
 
 namespace SessyController.Services
 {
-    public class EpexHourlyPricesService : BackgroundService
+    public class DayAheadMarketService : BackgroundService
     {
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
         private const string FormatDate = "yyyyMMdd";
@@ -27,9 +27,9 @@ namespace SessyController.Services
         private static string? _resolutionFormat;
         private volatile ConcurrentDictionary<DateTime, double>? _prices;
         private static IHttpClientFactory? _httpClientFactory;
-        private static LoggingService<EpexHourlyPricesService>? _logger;
+        private static LoggingService<DayAheadMarketService>? _logger;
 
-        public EpexHourlyPricesService(IConfiguration configuration, IHttpClientFactory httpClientFactory, LoggingService<EpexHourlyPricesService> logger)
+        public DayAheadMarketService(IConfiguration configuration, IHttpClientFactory httpClientFactory, LoggingService<DayAheadMarketService> logger)
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
